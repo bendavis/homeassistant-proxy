@@ -9,19 +9,15 @@ jobs:
   proxy:
     runs-on: ubuntu-latest
     steps:
-      - name: Disable containerd image store (forces gzip on push)
-        run: |
-          echo '{"features":{"containerd-snapshotter":false}}' | sudo tee /etc/docker/daemon.json
-          sudo systemctl restart docker
-
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Pull, retag, and push as gzip Docker V2
+      - name: Pull, save/reload (strips zstd), push as gzip
         run: |
           docker pull homeassistant/home-assistant:latest
+          docker save homeassistant/home-assistant:latest | docker load
           docker tag homeassistant/home-assistant:latest benhdavis/home-assistant:latest
           docker push benhdavis/home-assistant:latest
