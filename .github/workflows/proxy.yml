@@ -15,9 +15,40 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Pull, save/reload (strips zstd), push as gzip
+      - name: Pull, flatten via export/import (strips xattrs), push
         run: |
           docker pull homeassistant/home-assistant:latest
-          docker save homeassistant/home-assistant:latest | docker load
-          docker tag homeassistant/home-assistant:latest benhdavis/home-assistant:latest
+
+          python3 << 'EOF'
+          import subprocess, json
+
+          config = json.loads(subprocess.check_output([
+              'docker', 'inspect', 'homeassistant/home-assistant:latest'
+          ]))[0]['Config']
+
+          changes = []
+          for env in (config.get('Env') or []):
+              changes += ['--change', f'ENV {env}']
+          if config.get('WorkingDir'):
+              changes += ['--change', f'WORKDIR {config["WorkingDir"]}']
+          if config.get('User'):
+              changes += ['--change', f'USER {config["User"]}']
+          if config.get('Entrypoint'):
+              changes += ['--change', f'ENTRYPOINT {json.dumps(config["Entrypoint"])}']
+          if config.get('Cmd'):
+              changes += ['--change', f'CMD {json.dumps(config["Cmd"])}']
+          for port in (config.get('ExposedPorts') or {}):
+              changes += ['--change', f'EXPOSE {port}']
+
+          subprocess.run(['docker', 'create', '--name', 'tmp_ha',
+                          'homeassistant/home-assistant:latest'], check=True)
+
+          export = subprocess.Popen(['docker', 'export', 'tmp_ha'], stdout=subprocess.PIPE)
+          subprocess.run(['docker', 'import'] + changes + ['-', 'benhdavis/home-assistant:latest'],
+                         stdin=export.stdout, check=True)
+          export.wait()
+          subprocess.run(['docker', 'rm', 'tmp_ha'], check=True)
+          print('Import complete')
+          EOF
+
           docker push benhdavis/home-assistant:latest
