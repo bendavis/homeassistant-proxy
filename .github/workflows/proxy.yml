@@ -1,0 +1,21 @@
+name: Proxy HA Image (gzip)
+
+on:
+  schedule:
+    - cron: '0 3 * * *'  # Nightly at 3am UTC
+  workflow_dispatch:      # Allow manual trigger
+
+jobs:
+  proxy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install skopeo
+        run: sudo apt-get install -y skopeo
+
+      - name: Copy image with gzip compression
+        run: |
+          skopeo copy \
+            --dest-creds "${{ secrets.DOCKERHUB_USERNAME }}:${{ secrets.DOCKERHUB_TOKEN }}" \
+            --dest-compress-format gzip \
+            docker://homeassistant/home-assistant:latest \
+            docker://docker.io/benhdavis/home-assistant:latest
