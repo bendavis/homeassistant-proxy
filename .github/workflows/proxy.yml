@@ -9,13 +9,19 @@ jobs:
   proxy:
     runs-on: ubuntu-latest
     steps:
-      - name: Install skopeo
-        run: sudo apt-get install -y skopeo
-
-      - name: Copy as Docker V2 schema 2 (forces gzip, NAS-compatible)
+      - name: Disable containerd image store (forces gzip on push)
         run: |
-          skopeo copy \
-            --dest-creds "${{ secrets.DOCKERHUB_USERNAME }}:${{ secrets.DOCKERHUB_TOKEN }}" \
-            --format v2s2 \
-            docker://homeassistant/home-assistant:latest \
-            docker://docker.io/benhdavis/home-assistant:latest
+          echo '{"features":{"containerd-snapshotter":false}}' | sudo tee /etc/docker/daemon.json
+          sudo systemctl restart docker
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Pull, retag, and push as gzip Docker V2
+        run: |
+          docker pull homeassistant/home-assistant:latest
+          docker tag homeassistant/home-assistant:latest benhdavis/home-assistant:latest
+          docker push benhdavis/home-assistant:latest
