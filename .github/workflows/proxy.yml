@@ -9,14 +9,14 @@ jobs:
   proxy:
     runs-on: ubuntu-latest
     steps:
-      - name: Install skopeo
-        run: sudo apt-get install -y skopeo
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Copy and force gzip recompression
+      - name: Pull, retag, and push (forces gzip re-compression)
         run: |
-          skopeo copy \
-            --dest-creds "${{ secrets.DOCKERHUB_USERNAME }}:${{ secrets.DOCKERHUB_TOKEN }}" \
-            --dest-compress \
-            --dest-compress-format gzip \
-            docker://homeassistant/home-assistant:latest \
-            docker://docker.io/benhdavis/home-assistant:latest
+          docker pull homeassistant/home-assistant:latest
+          docker tag homeassistant/home-assistant:latest benhdavis/home-assistant:latest
+          docker push benhdavis/home-assistant:latest
